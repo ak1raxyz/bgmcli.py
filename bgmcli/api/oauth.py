@@ -112,9 +112,9 @@ def oauth_token_status():
     logger.info("token_status = %s" % token_status)
     return token_status
 
-def authenticate_required(api_request):
+def login_required(request):
     @functools.wraps
-    def authenticate_flow(*args, **kwargs):
+    def wrapper(*args, **kwargs):
         if not os.path.exists(credentials_file):
             query = oauth_authorize()
             oauth_access_token(query)
@@ -125,12 +125,5 @@ def authenticate_required(api_request):
             current_time = int(time.time())
             if current_time >= expires_at:
                 oauth_refresh_token()
-        return api_request(*args, **kwargs)
-    return authenticate_flow
-
-if __name__ == "__main__":
-    # query = oauth_authorize()
-    # oauth_access_token(query)
-    # oauth_refresh_token()
-    # oauth_token_status()
-    pass
+        return request(*args, **kwargs)
+    return wrapper
