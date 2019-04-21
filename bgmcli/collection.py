@@ -5,7 +5,7 @@ import urllib.parse
 
 import requests
 
-from oauth import login_required
+from .oauth import login_required
 
 # Enable logging
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.DEBUG)
@@ -14,29 +14,24 @@ logger = logging.getLogger(__name__)
 class Collection(object):
     def __init__(self, config):
         self.config = config
-        self.base_uri = config["uri"]["base"]
-        with open(config["user"]["credentials_file"]) as f:
-            self.credentials = json.loads(f.read())
-        self.session = requests.Session()
-        self.session.headers = {
-            "Authorization": "%s %s" % (self.credentials.get("token_type"), self.credentials.get("access_token"))
-        }
+        self.base = config["uri"]["base"]
 
     @login_required
-    def get_subject(self, subject_id):
+    def get_subject(self, subject_id, credentials=None):
         '''
         GET /collection/:subject_id
 
         :params subject_id: required, subject_id from subject url.
+        :params credentials: optional, automatically passed by login_required decorator.
 
         :return: return in raw JSON serialized data.
         '''
-        uri = urllib.parse.urljoin(self.base_uri, "/collection/%s" % subject_id)
-        response = self.session.get(uri)
-        return response
+        uri = urllib.parse.urljoin(self.base, "/collection/%s" % subject_id)
+        response = requests.get(uri, headers=credentials)
+        return response.json()
 
     @login_required
-    def update_subject(self, subject_id, status, comment=None, tags=list(), rating=None, privacy=0):
+    def update_subject(self, subject_id, status, comment=None, tags=list(), rating=None, privacy=0, credentials=None):
         '''
         POST /collection/:subject_id/:action
 
@@ -46,10 +41,11 @@ class Collection(object):
         :params tags: optional, tag list for specific subject.
         :params rating: optional, rating for specific subject.
         :params privacy: optional, collection privacy, 0 for public where 1 for private.
+        :params credentials: optional, automatically passed by login_required decorator.
 
         :return: return in raw JSON serialized data.
         '''
-        uri = urllib.parse.urljoin(self.base_uri, "/collection/%s/update" % subject_id)
+        uri = urllib.parse.urljoin(self.base, "/collection/%s/update" % subject_id)
         data = {
             "subject_id": subject_id,
             "status": status,
@@ -58,5 +54,5 @@ class Collection(object):
             "rating": rating,
             "privacy": privacy
         }
-        response = self.session.post(uri, data=data)
-        return response
+        response = requests.post(uri, data=data, headers=credentials)
+        return response.json()

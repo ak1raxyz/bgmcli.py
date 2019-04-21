@@ -7,11 +7,12 @@ import logging
 import webbrowser
 import configparser
 import functools
-import urllib.parse
+
+from urllib.parse import urljoin, urlencode, urlsplit
 
 import requests
 
-from utils import urldecode
+from .utils import urldecode
 
 # Prepare config
 config = configparser.ConfigParser()
@@ -33,7 +34,7 @@ def oauth_authorize():
     }
     logger.debug("OAuth 2.0 authorize params = %s" % params)
     authorize_uri = config["uri"]["authorize"]
-    request_url = '?'.join([authorize_uri, urllib.parse.urlencode(params)])
+    request_url = '?'.join([authorize_uri, urlencode(params)])
     results = webbrowser.open(request_url)
     logger.debug("webbrowser.open(%s) -> %s" % (request_url, results))
     try:
@@ -41,7 +42,7 @@ def oauth_authorize():
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt triggered, skip.")
         exit()
-    query = urldecode(urllib.parse.urlsplit(response_url).query)
+    query = urldecode(urlsplit(response_url).query)
     logger.debug("urldecode query = %s" % query)
     return query
 
@@ -65,6 +66,8 @@ def oauth_access_token(query):
     with open(credentials_file, 'w') as f:
         f.write(json.dumps(credentials, indent=2))
         logger.info("%s saved" % credentials_file)
+
+    return credentials
 
 def oauth_refresh_token(force=False):
     with open(credentials_file) as f:
@@ -101,6 +104,8 @@ def oauth_refresh_token(force=False):
         f.write(json.dumps(credentials, indent=2))
         logger.info("success refresh_token, %s saved." % credentials_file)
 
+    return credentials
+
 def oauth_token_status():
     with open(credentials_file) as f:
         credentials = json.loads(f.read())
@@ -117,13 +122,17 @@ def login_required(request):
     def wrapper(*args, **kwargs):
         if not os.path.exists(credentials_file):
             query = oauth_authorize()
-            oauth_access_token(query)
+            credentials = oauth_access_token(query)
         else:
             with open(credentials_file) as f:
                 credentials = json.loads(f.read())
             expires_at = int(credentials.get("expires"))
             current_time = int(time.time())
             if current_time >= expires_at:
-                oauth_refresh_token()
+                credentials = oauth_refresh_token()
+        headers = {
+            "Authorization": "%s %s" % (credentials.get("token_type"), credentials.get("access_token"))
+        }
+        kwargs.update({"credentials": headers})
         return request(*args, **kwargs)
     return wrapper
